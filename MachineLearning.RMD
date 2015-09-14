@@ -1,0 +1,107 @@
+---
+title: "MachineLearning"
+author: "MarkHE"
+date: "Monday, September 14, 2015"
+output: html_document
+---
+
+## Introduction  
+This report discusses performing a machine learning algorithm in order to find out the pattern of five human body exercises and use that to predict the activity the testee did. 
+
+##Data Source  
+Data for this report is gathered from the following sources:  
+
+* [Traing Set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)  
+* [Test Set](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)  
+* [More Info](http://groupware.les.inf.puc-rio.br/har)
+
+
+## Read in Data  
+This chunk simply set the environment ready and read in data. We should pay attention that the NA in raw data is represented in many different ways.  
+
+```{r,cache=TRUE}
+#Here we omit the part of downloading data
+setwd("C:\\Users\\Mark\\Desktop\\MachineLearning")
+train<-read.csv(".\\data\\pml-training.csv",na.strings=c("", "NA", "#DIV/0!"))
+test<-read.csv(".\\data\\pml-testing.csv",na.strings=c("", "NA", "#DIV/0!"))
+```
+
+## Preparation  
+
+### Remove unnecessary columns  
+
+There are several variables should be removed before modeling.  
+
+* Variables with no variance  
+* Variables with NA  
+* Variables not useful for prediction (like personal info)
+* Variables to indicate the time stamp
+
+```{r,cache=TRUE,warning=FALSE}
+library(caret)
+## Exclude variables with no variance
+rmindex<-nearZeroVar(train)
+train<-train[,-rmindex]
+test<-test[,-rmindex]
+## Exclude variables with NA
+rmindex<-sapply(train,function(x){sum(is.na(x))})
+rmindex<-(rmindex==0)
+train<-train[,rmindex]
+test<-test[,rmindex]
+##Exclude personal Info variables
+rmindex<-c("X","user_name")
+train<-train[,!names(train)%in%rmindex]
+test<-test[,!names(test)%in%rmindex]
+## Exclude time stamp
+rmindex<-grep("timestamp",names(train),value=TRUE)
+train<-train[,!names(train)%in%rmindex]
+test<-test[,!names(test)%in%rmindex]
+```
+
+### Divide the training data  
+
+In order to estimate the out of sample error, I divide the training set to training part and verification part. The verification part will not be used to model therefore the sample error on verification data can be close to sample error on test data.   
+
+```{r,warning=FALSE,cache=TRUE}
+set.seed(323)
+index_t<-createDataPartition(train$classe,p=0.6,list=FALSE)
+data_t<-train[index_t,]
+data_v<-train[-index_t,]
+```
+
+## Train the model  
+Here we use randon forest model.
+```{r,warning=FALSE,cache=TRUE}
+library(randomForest)
+model<-train(classe~.,data=data_t,method="rf",ntree=10,importance=TRUE)
+```
+
+## Model Performance  
+
+### Performance on traing data set  
+
+```{r,warning=FALSE,cache=TRUE}
+result_t<-predict(model,data_t)
+print(confusionMatrix(result_t,data_t$classe))
+```
+
+The model performs well on training data. But it's too good so that we may worry whether there is an overfitting. Therefore, we shall check the verification data.
+
+### Performance on verification data set  
+
+```{r,cache=TRUE}
+result_v<-predict(model,data_v)
+print(confusionMatrix(result_v,data_v$classe))
+```
+
+The model performs well on verification data which means this model isn't overfitting. The estimated out of sample accuracy is 99.59%.
+
+## Prediction Result  
+
+Finally, let's use our model to predict the test data set. The result is shown below:  
+
+```{r,cache=TRUE}
+result<-predict(model,test)
+print(result)
+```
+
